@@ -1,0 +1,80 @@
+---
+title: "Owen analysis"
+author: "meliao"
+date: "2020-07-17"
+output: workflowr::wflow_html
+editor_options:
+  chunk_output_type: console
+---
+
+## NOTE:
+
+These harmonized GWAS have not been run with S-PrediXcan, so we can't evaluate the success 
+of harmonization yet. 
+
+## Use-Case GWAS: PGC
+
+Using PGC GWAS (we believe it's in HG18) with ImageXcan models (UK Biobank genotyping is HG19)
+
+```{bash, eval=FALSE}
+export GWAS_TOOLS=/Users/owenmelia/projects/GWAS_preprocessessing/summary-gwas-imputation/src
+export DATA=/Users/owenmelia/projects/Dhiraj-Summary-ImageXcan/data
+export OUTPUT=/Users/owenmelia/projects/Dhiraj-Summary-ImageXcan/data/PGC_GWAS_harmonized
+```
+
+```{bash, eval=FALSE}
+python $GWAS_TOOLS/gwas_parsing.py \
+-gwas_file $DATA/PGC_GWAS/pgc.adhd.full.2012-10.txt \
+-liftover $DATA/hg18ToHg19.over.chain.gz \
+-output_column_map variant_id variant_id \
+-output_column_map chromosome chromosome \
+-output_column_map position position \
+-output_column_map non_effect_allele non_effect_allele \
+-output_column_map effect_allele effect_allele \
+-output_column_map pvalue pvalue \
+-output_column_map frequency frequency \
+-output_column_map zscore zscore \
+-output_column_map sample_size sample_size \
+--construct_panel_variant_id variant_id \
+-output $OUTPUT/pgc.adhd.full.2012-10.txt.gz
+```
+
+Notice that this command uses a new option `--construct_panel_variant_id variant_id`. This 
+command takes the GWAS dataset and constructs variant IDs using the `chromosome`, `position`, 
+`effect_allele` and `non_effect_allele` columns. The resulting variant IDs are saved in the `variant_id` 
+column, and they look like `chr{chromosome}_{position}_{non_effect_allele}_{effect_allele}`. 
+
+Because this feature is new, it's not on the `main` branch of the repository, but it is on the 
+`development_gwas_parsing_features` branch.
+
+
+## Use-Case GWAS: BCAC
+
+This was run on CRI, so the paths look different.
+
+```{bash, eval=FALSE}
+
+conda activate /gpfs/data/im-lab/nas40t2/owen/software/conda_envs/g_tools/
+
+GWASTOOLS=/gpfs/data/im-lab/nas40t2/owen/summary-gwas-imputation/src
+DATA1=/gpfs/data/im-lab/nas40t2/prajagopal/generate_weights
+DATA2=/gpfs/data/im-lab/nas40t2/abarbeira/data/liftover
+DATA3=/gpfs/data/im-lab/nas40t2/owen/data/1000G_reference/data/reference_panel_1000G
+```
+
+```{bash, eval=FALSE}
+python $GWASTOOLS/gwas_parsing.py \
+-gwas_file $DATA1/BCAC_2020_metaanalysis_formatted.txt.gz \
+-liftover $DATA2/hg19ToHg38.over.chain.gz \
+--chromosome_format
+-snp_reference_metadata $DATA3/variant_metadata.txt.gz METADATA \
+-output_column_map var_name variant_id \
+-output_column_map Baseline.Meta non_effect_allele \
+-output_column_map Effect.Meta effect_allele \
+-output_column_map Beta.meta effect_size \
+-output_column_map sdE.meta standard_error \
+-output_column_map chr.Onco chromosome \
+-output_column_map Position.Onco position \
+-output_order variant_id panel_variant_id chromosome position effect_allele non_effect_allele frequency pvalue zscore effect_size standard_error \
+-output $PBS_O_WORKDIR/BCAC_2020_metaanalysis_fullharmonized.txt.gz
+```
