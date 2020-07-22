@@ -1,0 +1,76 @@
+---
+title: "Harmonization and Summary-PrediXcan"
+author: "Padma Sheila Rajagopal"
+date: "2020-07-20"
+output: workflowr::wflow_html
+editor_options:
+  chunk_output_type: console
+  
+---
+##Harmonization
+Basic information on how to run this code (including how to install conda environment) is located at: 
+https://github.com/hakyimlab/MetaXcan/wiki/Tutorial:-GTEx-v8-MASH-models-integration-with-a-Coronary-Artery-Disease-GWAS
+
+-gwas_file: Self-explanatory. Can be in the format of summary statistics. There is an option for a folder if statistics are broken up by chromosome. 
+
+-liftover $DATA2/hg19ToHg38.over.chain.gz: File that translates positions from Hg19 to Hg38. Required for use with Predict DB models. 
+
+-snp_reference_metadata $DATA3/variant_metadata.txt.gz: Variant metadata from 1000 Genomes project.
+
+-output_column_map variables are all located within the input GWAS file. 
+-panel_variant_id must be specified for use with PrediXcan. 
+
+```{bash}
+#PBS -N fullharmonization
+#PBS -S /bin/bash
+#PBS -l walltime=12:00:00
+#PBS -l mem=4gb
+#PBS -l nodes=1:ppn=4
+#PBS -o ${PBS_JOBNAME}.o${PBS_JOBID}.log
+#PBS -e ${PBS_JOBNAME}.e${PBS_JOBID}.err
+
+module load gcc/6.2.0
+module load python/3.5.3
+module load miniconda3/4.7.10
+
+eval "$(conda shell.bash hook)"
+conda activate /gpfs/data/im-lab/nas40t2/prajagopal/Software/conda/envs/imlabtools
+
+GWASTOOLS=/gpfs/data/im-lab/nas40t2/prajagopal/generate_weights/src
+DATA1=/gpfs/data/im-lab/nas40t2/prajagopal/generate_weights
+DATA2=/gpfs/data/im-lab/nas40t2/prajagopal/generate_weights/gwasharmonization/liftover
+DATA3=/gpfs/data/im-lab/nas40t2/prajagopal/generate_weights/gwasharmonization/reference_panel_1000G
+
+python $GWASTOOLS/gwas_parsing.py \
+-gwas_file $DATA1/BCAC_2020_metaanalysis_formatted.txt.gz \
+-liftover $DATA2/hg19ToHg38.over.chain.gz \
+-snp_reference_metadata $DATA3/variant_metadata.txt.gz METADATA \
+-output_column_map var_name variant_id \
+-output_column_map Baseline.Meta non_effect_allele \
+-output_column_map Effect.Meta effect_allele \
+-output_column_map Beta.meta effect_size \
+-output_column_map sdE.meta standard_error \
+-output_column_map chr.Onco chromosome \
+-output_column_map Position.Onco position \
+-output_order variant_id panel_variant_id chromosome position effect_allele non_effect_allele frequency pvalue zscore effect_size standard_error \
+--insert_value sample_size 247173 --insert_value n_cases 133384 \
+-output $PBS_O_WORKDIR/BCAC_2020_metaanalysis_fullharmonized2.txt.gz \
+--chromosome_format
+#--keep_all_original_entries
+```
+
+##Summary-PrediXcan
+--gwas_file /Users/parajago/Research-Local/2019-tprs/Input/EA-summarystats/BCAC_2020_metaanalysis_formatted.txt.gz: Harmonized / imputed file from above. 
+-List of attributes under _column that are located within gwas_file 
+--model_db_path mashr_Breast_Mammary_Tissue.db: Predict DB model for a single tissue type. Must be run repeatedly for multiple tissue types. 
+--covariance mashr_Breast_Mammary_Tissue.txt.gz: covariance matrix for a single tissue type. Must be run repeatedly for multiple tissue types. 
+
+```{bash}
+python /Users/parajago/Research-Local/2019-tprs/software/MetaXcan-master/software/SPrediXcan.py \
+--gwas_file /Users/parajago/Research-Local/2019-tprs/Input/EA-summarystats/BCAC_2020_metaanalysis_formatted.txt.gz \
+--snp_column panel_variant_id --effect_allele_column Effect.Meta --non_effect_allele_column Baseline.Meta --beta_column Beta.meta --se_column sdE.meta \
+--model_db_path mashr_Breast_Mammary_Tissue.db \
+--covariance mashr_Breast_Mammary_Tissue.txt.gz \
+--throw \
+--output_file $OUTPUT/spredixcan_gtexmashrv8_2020BCAC_Overall_BreastCancer_EUR__PM__Breast_Mammary_Tissue.csv
+```
