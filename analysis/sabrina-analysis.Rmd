@@ -7,8 +7,6 @@ editor_options:
   chunk_output_type: console
 ---
 
-# Tutorial
-
 ## Definitions
 
 ```{bash, eval=FALSE}
@@ -18,84 +16,6 @@ METAXCAN=/Users/sabrinami/Github/MetaXcan/software
 DATA=/Users/sabrinami/Desktop/data
 OUTPUT=/Users/sabrinami/Github/Workshop-GWAS-Summary-Harmonization/output
 ```
-
-## Harmonization
-```{bash}
-python $GWAS_TOOLS/gwas_parsing.py \
--gwas_file $DATA/gwas/cad.add.160614.website.txt.gz \
--liftover $DATA/liftover/hg19ToHg38.over.chain.gz \
--snp_reference_metadata $DATA/reference_panel_1000G/variant_metadata.txt.gz METADATA \
--output_column_map markername variant_id \
--output_column_map noneffect_allele non_effect_allele \
--output_column_map effect_allele effect_allele \
--output_column_map beta effect_size \
--output_column_map p_dgc pvalue \
--output_column_map chr chromosome \
---chromosome_format \
--output_column_map bp_hg19 position \
--output_column_map effect_allele_freq frequency \
---insert_value sample_size 184305 --insert_value n_cases 60801 \
--output_order variant_id panel_variant_id chromosome position effect_allele non_effect_allele frequency pvalue zscore effect_size standard_error sample_size n_cases \
--output $OUTPUT/harmonized_gwas/CARDIoGRAM_C4D_CAD_ADDITIVE.txt.gz
-```
-
-
-## Quick Harmonization
-```{bash}
-python $METAXCAN/M03_betas.py \
---snp_map_file $DATA/coordinate_map/map_snp150_hg19.txt.gz \
---gwas_file $DATA/gwas/cad.add.160614.website.txt.gz \
---snp_column markername \
---non_effect_allele_column noneffect_allele \
---effect_allele_column effect_allele \
---beta_column beta \
---pvalue_column p_dgc \
---keep_non_rsid \
---throw \
---output $OUTPUT/quick_harmonized_gwas/CARDIoGRAM_C4D_CAD_ADDITIVE.txt.gz
-```
-
-## Imputation 
-```{bash}
-python $GWAS_TOOLS/gwas_summary_imputation.py \
--by_region_file $DATA/eur_ld.bed.gz \
--gwas_file $OUTPUT/harmonized_gwas/CARDIoGRAM_C4D_CAD_ADDITIVE.txt.gz \
--parquet_genotype $DATA/reference_panel_1000G/chr1.variants.parquet \
--parquet_genotype_metadata $DATA/reference_panel_1000G/variant_metadata.parquet \
--window 100000 \
--parsimony 7 \
--chromosome 1 \
--regularization 0.1 \
--frequency_filter 0.01 \
--sub_batches 10 \
--sub_batch 0 \
---standardise_dosages \
--output $OUTPUT/summary_imputation/CARDIoGRAM_C4D_CAD_ADDITIVE_chr1_sb0_reg0.1_ff0.01_by_region.txt.gz
-```
-
-## Post-Processing
-```{bash}
-python $GWAS_TOOLS/gwas_summary_imputation_postprocess.py \
--gwas_file $OUTPUT/harmonized_gwas/CARDIoGRAM_C4D_CAD_ADDITIVE.txt.gz \
--folder $OUTPUT/summary_imputation \
--pattern CARDIoGRAM_C4D_CAD_ADDITIVE.* \
--parsimony 7 \
--output $OUTPUT/processed_summary_imputation/imputed_CARDIoGRAM_C4D_CAD_ADDITIVE.txt.gz
-```
-
-## S-PrediXcan
-```{bash}
-python $METAXCAN/SPrediXcan.py \
---gwas_file  $OUTPUT/processed_summary_imputation/imputed_CARDIoGRAM_C4D_CAD_ADDITIVE.txt.gz \
---snp_column panel_variant_id --effect_allele_column effect_allele --non_effect_allele_column non_effect_allele --zscore_column zscore \
---model_db_path $DATA/models/eqtl/mashr/mashr_Whole_Blood.db \
---covariance $DATA/models/eqtl/mashr/mashr_Whole_Blood.txt.gz \
---keep_non_rsid --additional_output --model_db_snp_key varID \
---throw \
---output_file $OUTPUT/spredixcan/eqtl/CARDIoGRAM_C4D_CAD_ADDITIVE__PM__Whole_Blood.csv
-```
-
-# ClozUK + PGC GWAS
 
 
 ## Harmonization
@@ -146,7 +66,7 @@ python $GWAS_TOOLS/gwas_summary_imputation_postprocess.py \
 -folder $OUTPUT/summary_imputation \
 -pattern clozuk_pgc2.meta.sumstats.* \
 -parsimony 7 \
--output $OUTPUT/processed_summary_imputation/imputed_clozuk_pgc2.meta.sumstats.txt.gz
+-output $OUTPUT/processed_summary_imputation/clozuk_pgc2.meta.sumstats.txt.gz
 ```
 
 ## S-PrediXcan
@@ -161,4 +81,15 @@ python $METAXCAN/SPrediXcan.py \
 --output_file $OUTPUT/spredixcan/eqtl/clozuk_pgc2_mashr_Brain_Cortex.csv
 ```
 
+## S-PrediXcan Results
+```{r}
+spredixcan_association_mashr_Brain_Cortex = load_spredixcan_association(glue::glue("{OUTPUT}/spredixcan/eqtl/clozuk_pgc2/clozuk_pgc2_mashr_Brain_Cortex.csv"), gencode_df)
+dim(spredixcan_association_mashr_Brain_Cortex)
+significant_genes_mashr_Brain_Cortex <- spredixcan_association_mashr_Brain_Cortex %>% filter(pvalue < 0.05/nrow(spredixcan_association_mashr_Brain_Cortex)) %>% arrange(pvalue)
+```
 
+```{r plot brain cortex}
+spredixcan_association_mashr_Brain_Cortex %>% arrange(pvalue) %>% ggplot(aes(pvalue)) + geom_histogram(bins=20)
+
+gg_qqplot(spredixcan_association_mashr_Brain_Cortex$pvalue)
+```
